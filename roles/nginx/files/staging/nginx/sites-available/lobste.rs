@@ -8,6 +8,9 @@ server {
   server_name stage01.lobste.rs;
   access_log /var/log/nginx/lobste.rs.access.log main;
   error_log /var/log/nginx/lobste.rs.error.log;
+  
+  limit_req_zone $binary_remote_addr zone=site:10m rate=10r/s;
+  limit_req_zone $binary_remote_addr zone=search:10m rate=1r/s;
 
   root /srv/lobste.rs/http/public;
 
@@ -17,6 +20,7 @@ server {
   }
 
   location @puma {
+    limit_req zone=site;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header Host $http_host;
     proxy_set_header X-Forwarded-Proto http;
@@ -69,6 +73,7 @@ server {
   }
 
   location / {
+    limit_req zone=site;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header Host $http_host;
     proxy_set_header X-Forwarded-Proto http;
@@ -76,6 +81,20 @@ server {
 
     if (!-f $request_filename) {
       proxy_pass http://lobsters_puma_server;
+      break;
+    }
+  }
+
+  location /search {
+    limit_req zone=search burst=10;
+    limit_req_log_level warn;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header Host $http_host;
+    proxy_set_header X-Forwarded-Proto http;
+    proxy_redirect off;
+
+    if (!-f $request_filename) {
+      proxy_pass http://lobsters_puma_server/search;
       break;
     }
   }
